@@ -79,25 +79,59 @@ void displayStatus(const char* action) {
   display.display();
 }
 
-void showCommandFeedback(int command) {
+void showCommandFeedback(int cycles, bool dir) {
   display.clearDisplay();
   display.setCursor(0, 0);
-  display.setTextSize(2);
-  display.print("Cmd: ");
-  display.setCursor(0, 20);
-  display.println(command);
+  display.setTextSize(1);
+  display.print("Cmd: Move ");
+  display.print(cycles);
+  display.print(" Cycle ");
+  display.println(dir ? "Forward" : "Backward");
   display.display();
-  delay(250);
+  delay(1000);
 }
 
-void moveOneCycle(bool dir) {
+void moveNCycle(int n, bool dir) {
   stepper.setSpeed(dir ? abs(speed) : -abs(speed));
-  int steps = 2048; // one cycle for 28BYJ-48
-  stepper.move(steps * (dir ? 1 : -1));
+  int steps = 4096; // one cycle for 28BYJ-48
+  stepper.move(steps * (dir ? n : -n));
   while (stepper.distanceToGo() != 0) {
     stepper.run();
   }
-  displayStatus(dir ? "One Cycle Forward" : "One Cycle Backward");
+
+  // Display final movement summary
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.setTextSize(1);
+  display.print("Moved ");
+  display.print(n);
+  display.print(" Cycle ");
+  display.println(dir ? "Forward" : "Backward");
+  display.display();
+  delay(1000);
+}
+
+void showProjectIntro() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("Remote Stepper Motor");
+  display.println("Controller System");
+  display.display();
+  delay(1500);  // Show project title
+
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.setTextSize(1);
+  display.println("Presented by:");
+
+  display.println("-------------");
+  display.println("- Abdullah(383)");
+  display.println("- Khaled(391)");
+  display.println("- Shanto(379)");
+  display.println("- Tawhid(395)");
+  display.display();
+  delay(2000);  // Show contributor names
 }
 
 void setup() {
@@ -107,12 +141,8 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed"));
     while (true);
   }
-  display.clearDisplay();
-  display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println("Initializing...");
-  display.display();
+  showProjectIntro();
 
   EEPROM.begin(64);
   loadFromEEPROM();
@@ -131,20 +161,20 @@ void loop() {
     int command = IrReceiver.decodedIRData.command;
     Serial.print("IR Command: "); Serial.println(command);
 
-    showCommandFeedback(command);
+    // showCommandFeedback(command,dir);
 
-    if (command >= 1 && command <= 9) {
-      stepRequest = command;
+    if (command >= 0 && command <= 9) {
+      stepRequest = command + 1; // Consider 0 as 1, 1 as 2, ..., 9 as 10
       cycleAwaitDirection = true;
       displayStatus("Press F/B for Cycle");
-    } else if (cycleAwaitDirection && (command == forward || command == backword)) {
-      bool dir = (command == forward);
-      for (int i = 0; i < stepRequest; i++) {
-        moveOneCycle(dir);
-      }
-      cycleAwaitDirection = false;
-      stepRequest = 0;
-    } else {
+    } 
+    else if (cycleAwaitDirection && (command == forward || command == backword)) {
+        bool dir = (command == forward);
+        showCommandFeedback(stepRequest, dir); // Show detailed feedback
+        moveNCycle(stepRequest, dir); // Just move requested cycles once
+        cycleAwaitDirection = false;
+        stepRequest = 0;
+    }else {
       switch (command) {
         case 17:
           moveForward = true;
